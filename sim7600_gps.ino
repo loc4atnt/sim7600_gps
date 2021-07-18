@@ -121,6 +121,23 @@ boolean connectMQTT(PubSubClient *mqtt) {
   return mqtt->connected();
 }
 
+void pushGPSData() {
+  if (!gps_updtTime.isEmpty()) { // Chỉ publish dữ liệu khi nó được cập nhật (updtTime!="")
+    String sendingStr = "";
+    StaticJsonDocument<128> doc;
+    doc["lat"] = gps_lat;
+    doc["lon"] = gps_lon;
+    doc["alt"] = gps_alt;
+    doc["speed"] = gps_speed;
+    doc["time"] = gps_updtTime;
+    serializeJson(doc, sendingStr);
+    gsmMqtt.publish(topic_gps, sendingStr.c_str());
+    gps_updtTime = "";
+    Serial.print("publish: ");
+    Serial.println(sendingStr);// Debug
+  }
+}
+
 // Hàm xử lý trong loop() dành cho MQTT Client dùng GPRS
 void mqttLoopWithGPRS() {
   if (!gsmMqtt.connected()) { // Nếu chưa có kết nối tới MQTT Broker
@@ -130,28 +147,13 @@ void mqttLoopWithGPRS() {
       delay(5000);
     }
   } else { // Nếu đã có kết nối tới MQTT Broker rồi
-
-    if (!gps_updtTime.isEmpty()){// Chỉ publish dữ liệu khi nó được cập nhật (updtTime!="")
-      String sendingStr = "";
-      StaticJsonDocument<128> doc;
-      doc["lat"] = gps_lat;
-      doc["lon"] = gps_lon;
-      doc["alt"] = gps_alt;
-      doc["speed"] = gps_speed;
-      doc["time"] = gps_updtTime;
-      serializeJson(doc, sendingStr);
-      gsmMqtt.publish(topic_gps, sendingStr.c_str());
-      gps_updtTime = "";
-      Serial.print("publish: ");
-      Serial.println(sendingStr);// Debug
-    }
-    
+    pushGPSData();
     gsmMqtt.loop();// Hàm xử lý của thư viện mqtt
   }
 }
 
 void getGPSData() {
-  if ((millis()-lastTime)<GETTING_GPS_INTERVAL) return;// Chi lay du lieu GPS moi GETTING_GPS_INTERVAL (ms)
+  if ((millis() - lastTime) < GETTING_GPS_INTERVAL) return; // Chi lay du lieu GPS moi GETTING_GPS_INTERVAL (ms)
   if (modem.getGPS(&gps_lat, &gps_lon, &gps_speed, &gps_alt, &gps_vsat, &gps_usat, &gps_accuracy,
                    &gps_year, &gps_month, &gps_day, &gps_hour, &gps_min, &gps_sec)) {
     Serial.println("Getted GPS Info");
